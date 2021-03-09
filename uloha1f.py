@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-cap = cv2.VideoCapture('Real-Barca_Trim.mp4')
+cap = cv2.VideoCapture('IMG_0081.MOV')
 cap.set(3, 640)
 cap.set(4, 480)
 cap.set(10, 50)
