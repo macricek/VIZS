@@ -11,36 +11,13 @@ green_upper = np.array([102, 255, 255], np.uint8)
 blue_lower = np.array([94, 80, 2], np.uint8)
 blue_upper = np.array([120, 255, 255], np.uint8)
 # Set range for white color
-white_lower = np.array([0, 0, 240], np.uint8)
-white_upper = np.array([0, 0, 245], np.uint8)
-
-#bar
-# Create a window
-cv2.namedWindow('image')
-
-def nothing(x):
-    pass
-
-
-# create trackbars for color change
-cv2.createTrackbar('HMin','image',0,179,nothing) # Hue is from 0-179 for Opencv
-cv2.createTrackbar('SMin','image',0,255,nothing)
-cv2.createTrackbar('VMin','image',0,255,nothing)
-cv2.createTrackbar('HMax','image',0,179,nothing)
-cv2.createTrackbar('SMax','image',0,255,nothing)
-cv2.createTrackbar('VMax','image',0,255,nothing)
-
-# Set default value for MAX HSV trackbars.
-cv2.setTrackbarPos('HMax', 'image', 179)
-cv2.setTrackbarPos('SMax', 'image', 255)
-cv2.setTrackbarPos('VMax', 'image', 255)
-
-# Initialize to check if HSV min/max value changes
-hMin = sMin = vMin = hMax = sMax = vMax = 0
-phMin = psMin = pvMin = phMax = psMax = pvMax = 0
+sensitivity = 40
+white_lower = np.array([0,0,255-sensitivity])
+white_upper = np.array([255,sensitivity,255])
 
 
 def detectColor(inputFrame):
+    kernal = np.ones((5, 5), "uint8")
     # 1. convert from BGR to HSV
     hsvFrame = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2HSV)
     #cv2.imshow("hsv", hsvFrame)
@@ -49,12 +26,14 @@ def detectColor(inputFrame):
     red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
     green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
     blue_mask = cv2.inRange(hsvFrame, blue_lower, blue_upper)
-    white_mask = cv2.inRange(hsvFrame, white_lower,white_upper)
+    white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
+    white_mask = cv2.dilate(white_mask, kernal)
 
     # 3.
-    res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=mask)
-    cv2.imshow("hsv maska", res)
-    return 0
+    res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=white_mask)
+    #cv2.imshow("hsv maska", res)
+
+    return "white", res
 
 
 
@@ -77,12 +56,11 @@ while True:
     dim = (width, height)
     # resize image
     frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
-    # height, width, _ = frame.shape
 
     # extract region of interest
     roi = frame[300:600, 0:width]  # full scene
-
-    mask = object_detector.apply(roi)
+    color, coloredFrame = detectColor(roi)
+    mask = object_detector.apply(coloredFrame)
     _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)
 
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -97,7 +75,9 @@ while True:
     # cv2.imshow("Frame",frame)
     cv2.imshow("Mask", mask)
     cv2.imshow("roi", roi)
-    detectColor(roi)
+
+    print(color)
+    cv2.imshow("hsv maska", coloredFrame)
     key = cv2.waitKey(30)
     if key == 27:  # esc
         break
