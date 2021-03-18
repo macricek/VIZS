@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+# Create tracker object
 
 def defineParams(hsvFrame, askedColor):
     # Set range for red color
@@ -13,42 +14,44 @@ def defineParams(hsvFrame, askedColor):
     sensitivity = 50
     white_lower = np.array([0, 0, 255 - sensitivity])
     white_upper = np.array([255, sensitivity, 255])
+    # Set range for BLACK color
+    black_lower = np.array([0, 0, 0])
+    black_upper = np.array([255,255, 30])
 
     red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
     green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
     white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
+    black_mask = cv2.inRange(hsvFrame,black_lower,black_upper)
+
     if askedColor == 'r':
         mask = red_mask
-        treshold = 120
+
     elif askedColor == 'w':
         mask = white_mask
-        treshold = 120
+
     elif askedColor == 'g':
         mask = green_mask
-        treshold = 120
-    return mask,treshold
+
+    elif askedColor == 'b':
+        mask = black_mask
+
+    return mask
 
 
 def maskColor(inputFrame, askedColor):
 
-    if askedColor == 'b':
-        grayscale = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2GRAY)
-        cv2.imshow("s", grayscale)
-        _, res = cv2.threshold(grayscale, 1, 120, cv2.THRESH_BINARY)
-    else:
-        kernal = np.ones((5, 5), "uint8")
+    kernal = np.ones((5, 5), "uint8")
         # 1. convert from BGR to HSV
-        hsvFrame = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2HSV)
+    hsvFrame = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2HSV)
         #cv2.imshow("hsv", hsvFrame)
 
-        mask, treshold = defineParams(hsvFrame, askedColor)
-        mask = cv2.dilate(mask, kernal)
+    mask= defineParams(hsvFrame, askedColor)
+    mask = cv2.dilate(mask, kernal)
 
         # 3.
-        res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=mask)
+    res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=mask)
 
     masked = object_detector.apply(res)
-    #_, masked = cv2.threshold(masked, treshold, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(masked, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     return masked, contours
 
@@ -75,8 +78,9 @@ def setRegionOfInterest(choice, frame):
 
 
 def findContours(contours, color, img):
-            #   WHITE        ,    BLUE    ,     GREEN  ,    RED
-    colors = [(250, 250, 250), (0, 0, 0), (0, 255, 0), (0, 0, 255)]
+            #   WHITE        ,    BLACK    ,     GREEN  ,    RED
+    colors = [(250, 250, 250), (10, 10, 10), (0, 255, 0), (0, 0, 255)]
+
     colorOfText = colors[color]
     for cnt in contours:
         # calc are and remove small elements
@@ -85,7 +89,7 @@ def findContours(contours, color, img):
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
             cv2.putText(img, "slavomir kajan", (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=colorOfText)
-        elif area > 250:
+        elif area > 150:
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(img, "kokot", (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=colorOfText)
@@ -98,7 +102,7 @@ cap = cv2.VideoCapture(videos[choice])
 
 scale_percent = 60  # percent of original size
 
-object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=100, varThreshold=50)
+object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=80, varThreshold=50)
 while True:
     ret, frame = cap.read()
     if not ret:
