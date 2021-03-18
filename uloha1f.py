@@ -37,7 +37,7 @@ def detectColor(inputFrame):
 
 
 
-cap = cv2.VideoCapture('IMG_0081.MOV')
+cap = cv2.VideoCapture('classic.MOV')
 # cap.set(3, 640)
 # cap.set(4, 480)
 # cap.set(10, 50)
