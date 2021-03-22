@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 
-# Create tracker object
 
 def defineParams(hsvFrame, askedColor):
     # Set range for red color
@@ -23,38 +22,61 @@ def defineParams(hsvFrame, askedColor):
     white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
     black_mask = cv2.inRange(hsvFrame, black_lower, black_upper)
 
-    if askedColor == 'r':
+    if askedColor == "Red":
         mask = red_mask
 
-    elif askedColor == 'w':
+    elif askedColor == "White":
         mask = white_mask
 
-    elif askedColor == 'g':
+    elif askedColor == "Green":
         mask = green_mask
 
-    elif askedColor == 'b':
+    elif askedColor == "Black":
         mask = black_mask
 
     return mask
 
 
 def maskColor(inputFrame, askedColor):
-
-    kernal = np.ones((5, 5), "uint8")
+    kernal = np.ones((3, 3), "uint8")
         # 1. convert from BGR to HSV
     hsvFrame = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2HSV)
         #cv2.imshow("hsv", hsvFrame)
-
     mask = defineParams(hsvFrame, askedColor)
-    #if askedColor == 'w':
     mask = cv2.dilate(mask, kernal)
-
         # 3.
     res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=mask)
+    return res
 
-    masked = object_detector.apply(inputFrame)
-    contours, _ = cv2.findContours(masked, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    return masked, contours, res
+
+def findColorPosInList(color):
+    id = 0
+    for c in colors:
+        if c == color:
+            return id
+        id = id + 1
+    return None
+
+
+def drawBoundingRect(img, box, textInfo):
+    # parse box
+    x = box[0]
+    y = box[1]
+    w = box[2]
+    h = box[3]
+
+    # parse info
+    text = textInfo[0]
+    colorName = textInfo[1]
+    try:
+        color = colorsNum[findColorPosInList(colorName)]
+    except:
+        color = colorsNum[0]
+        print("Picked color!")
+    #draw rectangle
+    cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    #draw text
+    cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=color)
 
 
 def setRegionOfInterest(choice, frame):
@@ -80,26 +102,63 @@ def setRegionOfInterest(choice, frame):
     return roi
 
 
-def findContours(contours, color, img):
-            #   WHITE        ,    BLACK    ,     GREEN  ,    RED
-    colors = [(250, 250, 250), (10, 10, 10), (0, 255, 0), (0, 0, 255)]
+def isThisColorRight():
+    #TODO process masked image to determine
+    return True
 
-    colorOfText = colors[color]
+
+def determineColorOfObject(img, roi):
+    trashHold = 10
+
+    if roi[1] - trashHold > 0:
+        h1 = roi[1] - trashHold
+    else:
+        h1 = roi[1]
+    if roi[0] - trashHold > 0:
+        w1 = roi[0] - trashHold
+    else:
+        w1 = roi[0]
+
+    h2 = roi[1] + roi[3] + trashHold
+    w2 = roi[0] + roi[2] + trashHold
+
+    region = img[h1:h2, w1:w2]
+    for currentColor in colors:
+        masked = maskColor(region, currentColor)
+        if isThisColorRight():
+            return currentColor
+    return None
+
+
+def findContours(img, original):
+    # define 2 lists
+    contoursList = []
+    typesAndColors = []
+
+    # first find contours
+    contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     for cnt in contours:
         # calc are and remove small elements
         area = cv2.contourArea(cnt)
-        if area > 2500:
+
+        if area > 4000:
             x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-            cv2.putText(img, "Big", (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=colorOfText)
-        elif area > 1000:
-            x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(img, "Small", (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=colorOfText)
+            contour = (x, y, w, h)
+            color = determineColorOfObject(original, contour)
+            if area > 12000:
+                type = "Big"
+            else:
+                type = "Small"
+            contoursList.append(contour)
+            typesAndColors.append((type, color))
+    return contoursList, typesAndColors
 
 ### START OF CODE
 
-videos = ['clasic.MOV', 'autobus.mp4','rec_Trim.mp4']
+colorsNum = [(250, 250, 250), (10, 10, 10), (0, 255, 0), (0, 0, 255)]
+colors = ["White", "Black", "Green", "Red"]
+
+videos = ['clasic.MOV', 'autobus.mp4', 'rec_Trim.mp4']
 choice = 2
 cap = cv2.VideoCapture(videos[choice])
 
@@ -110,23 +169,20 @@ while True:
         break
 
     roi = setRegionOfInterest(choice, frame)
+    mask = object_detector.apply(roi)
+    _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)
+    contours, contourInfo = findContours(mask, roi)
+    if len(contours) != len(contourInfo):
+        print("Not good")
+    for i in range(0, len(contours)):
+        drawBoundingRect(roi, contours[i], contourInfo[i])
 
-    # create color masks
-    whiteFrame, contoursWhite, rw = maskColor(roi, 'w')
-    blackFrame, contoursBlack, rb = maskColor(roi, 'b')
-    greenFrame, contoursGreen, rg = maskColor(roi, 'g')
-    redFrame, contoursRed, rr = maskColor(roi, 'r')
-
-    findContours(contoursWhite, 0, roi)
-    findContours(contoursBlack, 1, roi)
-    findContours(contoursGreen, 2, roi)
-    findContours(contoursRed, 3, roi)
 
     # cv2.imshow("Frame",frame)
-    cv2.imshow("black Mask", rb)
-    cv2.imshow("green mask", rg)
-    cv2.imshow("red mask", rr)
-    cv2.imshow("white mask", rw)
+    #cv2.imshow("black Mask", rb)
+    #cv2.imshow("green mask", rg)
+    #cv2.imshow("red mask", rr)
+    #cv2.imshow("white mask", rw)
     cv2.imshow("roi", roi)
 
 #    print(color)
