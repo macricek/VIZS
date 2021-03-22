@@ -102,8 +102,10 @@ def setRegionOfInterest(choice, frame):
     return roi
 
 
-def isThisColorRight():
+def isThisColorRight(img):
     #TODO process masked image to determine
+    cv2.imshow("test", img)
+    key = cv2.waitKey(3000)
     return True
 
 
@@ -125,7 +127,7 @@ def determineColorOfObject(img, roi):
     region = img[h1:h2, w1:w2]
     for currentColor in colors:
         masked = maskColor(region, currentColor)
-        if isThisColorRight():
+        if isThisColorRight(masked):
             return currentColor
     return None
 
@@ -161,33 +163,35 @@ colors = ["White", "Black", "Green", "Red"]
 videos = ['clasic.MOV', 'autobus.mp4', 'rec_Trim.mp4']
 choice = 2
 cap = cv2.VideoCapture(videos[choice])
-
+ignoreFirst = 0
 object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=200, varThreshold=50)
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
-    roi = setRegionOfInterest(choice, frame)
-    mask = object_detector.apply(roi)
-    _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)
-    contours, contourInfo = findContours(mask, roi)
-    if len(contours) != len(contourInfo):
-        print("Not good")
-    for i in range(0, len(contours)):
-        drawBoundingRect(roi, contours[i], contourInfo[i])
-
+    if ignoreFirst > 3:
+        roi = setRegionOfInterest(choice, frame)
+        mask = object_detector.apply(roi)
+        _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)
+        contours, contourInfo = findContours(mask, roi)
+        if len(contours) != len(contourInfo):
+            print("Not good")
+        for i in range(0, len(contours)):
+            drawBoundingRect(roi, contours[i], contourInfo[i])
+        cv2.imshow("roi", roi)
+    ignoreFirst = ignoreFirst + 1
 
     # cv2.imshow("Frame",frame)
     #cv2.imshow("black Mask", rb)
     #cv2.imshow("green mask", rg)
     #cv2.imshow("red mask", rr)
     #cv2.imshow("white mask", rw)
-    cv2.imshow("roi", roi)
+
 
 #    print(color)
 #    cv2.imshow("hsv maska", whiteFrame)
-    key = cv2.waitKey(30)
+    key = cv2.waitKey(10)
     if key == 27:  # esc
         break
         cap.release()
