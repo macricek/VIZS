@@ -10,7 +10,7 @@ def defineParams(hsvFrame, askedColor):
     green_lower = np.array([25, 52, 72], np.uint8)
     green_upper = np.array([102, 255, 255], np.uint8)
     # Set range for white color
-    sensitivity = 50
+    sensitivity = 70
     white_lower = np.array([0, 0, 255 - sensitivity])
     white_upper = np.array([255, sensitivity, 255])
     # Set range for BLACK color
@@ -39,9 +39,12 @@ def defineParams(hsvFrame, askedColor):
 
 def maskColor(inputFrame, askedColor):
     kernal = np.ones((3, 3), "uint8")
+    kernel = np.ones((5, 5), "uint8")
+    blur = cv2.GaussianBlur(inputFrame, (3, 3), 0)
+    _, thresh = cv2.threshold(blur, 130, 255, cv2.THRESH_BINARY)
         # 1. convert from BGR to HSV
-    hsvFrame = cv2.cvtColor(inputFrame, cv2.COLOR_BGR2HSV)
-        #cv2.imshow("hsv", hsvFrame)
+    hsvFrame = cv2.cvtColor(thresh, cv2.COLOR_BGR2HSV)
+    #cv2.imshow("hsv", hsvFrame)
     mask = defineParams(hsvFrame, askedColor)
     mask = cv2.dilate(mask, kernal)
         # 3.
@@ -58,10 +61,10 @@ def findColorPosInList(color):
     return None
 
 
-def drawBoundingRect(img, box, textInfo):
+def drawBoundingRect(img, box, textInfo, moveX = 0, moveY = 0):
     # parse box
-    x = box[0]
-    y = box[1]
+    x = box[0] + moveX
+    y = box[1] + moveY
     w = box[2]
     h = box[3]
 
@@ -98,14 +101,17 @@ def setRegionOfInterest(choice, frame):
         # extract region of interest
         roi = frame[400:700, 0:width]  # full scene
     elif choice == 2:
-        roi = frame[357:357+344, 680:680+547]
-    return roi
+        moveY = 357
+        moveX = 680
+        roi = frame[moveY:moveY+344, moveX:moveX+547]
+    return roi, moveX, moveY
 
 
 def isThisColorRight(img):
     #TODO process masked image to determine
+#    contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cv2.imshow("test", img)
-    key = cv2.waitKey(3000)
+   # key = cv2.waitKey(2000)
     return True
 
 
@@ -151,43 +157,40 @@ def findContours(img, original):
                 type = "Big"
             else:
                 type = "Small"
-            contoursList.append(contour)
-            typesAndColors.append((type, color))
+            if color is not None:
+                contoursList.append(contour)
+                typesAndColors.append((type, color))
     return contoursList, typesAndColors
 
 ### START OF CODE
 
 colorsNum = [(250, 250, 250), (10, 10, 10), (0, 255, 0), (0, 0, 255)]
-colors = ["White", "Black", "Green", "Red"]
-
+colors = ["White", "Red", "Black", "Green"]
+colors = ["Black", "White", "Red", "Green"]
 videos = ['clasic.MOV', 'autobus.mp4', 'rec_Trim.mp4']
 choice = 2
 cap = cv2.VideoCapture(videos[choice])
 ignoreFirst = 0
-object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=200, varThreshold=50)
+object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=100, varThreshold=50)
 while True:
     ret, frame = cap.read()
     if not ret:
         break
-
+    red = maskColor(frame, "White")
+    cv2.imshow("Red", red)
+    cv2.imshow("Frame", frame)
+    key = cv2.waitKey(10000)
     if ignoreFirst > 3:
-        roi = setRegionOfInterest(choice, frame)
+        roi, moveX, moveY = setRegionOfInterest(choice, frame)
         mask = object_detector.apply(roi)
         _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)
         contours, contourInfo = findContours(mask, roi)
         if len(contours) != len(contourInfo):
             print("Not good")
         for i in range(0, len(contours)):
-            drawBoundingRect(roi, contours[i], contourInfo[i])
-        cv2.imshow("roi", roi)
+            drawBoundingRect(frame, contours[i], contourInfo[i], moveX, moveY)
+        cv2.imshow("roi", frame)
     ignoreFirst = ignoreFirst + 1
-
-    # cv2.imshow("Frame",frame)
-    #cv2.imshow("black Mask", rb)
-    #cv2.imshow("green mask", rg)
-    #cv2.imshow("red mask", rr)
-    #cv2.imshow("white mask", rw)
-
 
 #    print(color)
 #    cv2.imshow("hsv maska", whiteFrame)
