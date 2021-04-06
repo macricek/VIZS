@@ -4,15 +4,16 @@ import numpy as np
 
 def defineParams(hsvFrame, askedColor):
     # Set range for red color
-    red_lower = np.array([136, 87, 111], np.uint8)
+    red_lower = np.array([120, 60, 50], np.uint8)
     red_upper = np.array([180, 255, 255], np.uint8)
     # Set range for green color
-    green_lower = np.array([25, 52, 72], np.uint8)
-    green_upper = np.array([102, 255, 255], np.uint8)
+    green_lower = np.array([50, 60, 100], np.uint8)
+    green_upper = np.array([120, 255, 255], np.uint8)
     # Set range for white color
     sensitivity = 70
     white_lower = np.array([0, 0, 255 - sensitivity])
     white_upper = np.array([255, sensitivity, 255])
+
 
     red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
     green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
