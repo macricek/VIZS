@@ -29,11 +29,11 @@ cv2.createTrackbar('highS','image',ihighS,255,callback)
 
 cv2.createTrackbar('lowV','image',ilowV,255,callback)
 cv2.createTrackbar('highV','image',ihighV,255,callback)
-ret, frame = cap.read()
-frame1 = frame
+
 while True:
     # grab the frame
-
+    ret, frame = cap.read()
+    frame1 = frame
     if not ret:
         break
     # get trackbar positions
@@ -59,3 +59,7 @@ while True:
         break
         cv2.destroyAllWindows()
         cap.release()
+    elif k == 'p':
+        k1 = cv2.waitKey(50000)
+        if k1 == 'p':
+            break
