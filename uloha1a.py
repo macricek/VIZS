@@ -19,7 +19,23 @@ while True:
     _,mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)
 
     contours, _  =cv2.findContours(mask,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-
+    scale_percent = 60  # percent of original size
+    if choice == 0:
+        width = int(frame.shape[1] * scale_percent / 100)
+        height = int(frame.shape[0] * scale_percent / 100)
+        dim = (width, height)
+        # resize image
+        frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+        # extract region of interest
+        roi = frame[300:600, 0:width]  # full scene
+    elif choice == 1:
+        width = int(frame.shape[1] * scale_percent / 100)
+        height = int(frame.shape[0] * scale_percent / 100)
+        dim = (width, height)
+        # resize image
+        frame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+        # extract region of interest
+        roi = frame[400:700, 0:width]  # full scene
     for cnt in contours:
         #calc are and remove small elements
         area=cv2.contourArea(cnt)

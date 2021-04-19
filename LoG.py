@@ -82,7 +82,7 @@ thresh = 1
 new_img_porovnanie = np.uint8(np.log(img_porovnanie));
 LoG_img_porovnanie = cv2.threshold(new_img_porovnanie, thresh, 255, cv2.THRESH_BINARY)[1]
 
-log = LoG(img_porovnanie, 2, 20) #img,sigma,threshold odporucam(1-20)
+log = LoG(img_porovnanie, 1, 20) #img,sigma,threshold odporucam(1-20)
 
 cv2.imshow('Input image ',img_porovnanie)
 cv2.imshow('LoG image from NP function ',LoG_img_porovnanie)
