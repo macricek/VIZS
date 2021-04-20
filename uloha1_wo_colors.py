@@ -17,21 +17,21 @@ class carTracker():
         self.tracker = cv2.TrackerCSRT.create()
         self.tracker.init(frame, inbox)
         self.box = inbox
-        self.info = (str(self.number), "Black")
+        self.info = (str(self.number), "Red")
         self.isAlive = True
 
     def update(self):
         if self.isAlive:
+            self.old_box = self.box
             self.isAlive, self.box = self.tracker.update(frame)
         if self.isAlive:
             self.isAlive = (not self.isTrackerStacked()) & (not self.isRectOutOfFrame())
 
     def isTrackerStacked(self):
-        if self.box == self.old_box:
+        if sizeBetween(self.box, self.old_box) < 0.5:
             self.stacked_counter = self.stacked_counter + 1
             if self.stacked_counter > 5:
                 print("Tracker " + str(self.number) + " stacked!")
-                self.stacked_counter = 0
                 return True
         else:
             self.stacked_counter = 0
@@ -57,7 +57,7 @@ class carTracker():
             listbox[0] = listbox[0] - moveX
             listbox[1] = listbox[1] - moveY
             box = tuple(listbox)
-            drawBoundingRect(frame, box, self.info)
+            drawBoundingRect(frame, box, self.info, False)
 
 
 def defineParams(hsvFrame, askedColor):
@@ -71,7 +71,6 @@ def defineParams(hsvFrame, askedColor):
     sensitivity = 10
     white_lower = np.array([0, 0, 255 - sensitivity])
     white_upper = np.array([255, sensitivity, 255])
-
 
     red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
     green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
@@ -91,7 +90,6 @@ def defineParams(hsvFrame, askedColor):
 
 def maskColor(inputFrame, askedColor):
     kernal = np.ones((3, 3), "uint8")
-    kernel = np.ones((5, 5), "uint8")
     blur = cv2.GaussianBlur(inputFrame, (3, 3), 0)
     _, thresh = cv2.threshold(blur, 130, 255, cv2.THRESH_BINARY)
         # 1. convert from BGR to HSV
@@ -119,7 +117,7 @@ def findColorPosInList(color):
     return None
 
 
-def drawBoundingRect(img, box, textInfo):
+def drawBoundingRect(img, box, textInfo, rect=True):
     # parse box
     x = box[0] + moveX
     y = box[1] + moveY
@@ -129,14 +127,19 @@ def drawBoundingRect(img, box, textInfo):
     # parse info
     text = textInfo[0]
     colorName = textInfo[1]
-    color = colorsNum[findColorPosInList(colorName)]
-    if color is None:
-        print("Picked black color!")
-        color = colors[3]
+    colorIdx = findColorPosInList(colorName)
+    if colorIdx is None:
+        color = colors[1]
+    else:
+        color = colorsNum[colorIdx]
     #draw rectangle
-    cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    if rect:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
     #draw text
-    cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=color)
+    if rect:
+        cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=color)
+    else:
+        cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=(0, 0, 255))
 
 
 def setRegionOfInterest(choice, frame):
@@ -149,8 +152,6 @@ def setRegionOfInterest(choice, frame):
 
 def isThisColorRight(img, expectedArea):
 
-    #imgt = cv2.GaussianBlur(img,)
-
     cannyy = cv2.Canny(img, 125, 175)
     dilated = cv2.dilate(cannyy, (7, 7), iterations=3)
     #cv2.imshow("D",dilated)
@@ -160,7 +161,6 @@ def isThisColorRight(img, expectedArea):
         area = cv2.contourArea(contour)
         if area > expectedArea/2:
             return True
-   # cv2.imshow("test", cannyy)
    # key = cv2.waitKey(2000)
     return False
 
@@ -202,7 +202,7 @@ def findContours(img, original):
             x, y, w, h = cv2.boundingRect(cnt)
             contour = (x, y, w, h)
             color = determineColorOfObject(original, contour, area)
-            if area > 1000:
+            if area > 2000:
                 type = "Big"
             else:
                 type = "Small"
@@ -215,10 +215,9 @@ def findContours(img, original):
 
 def alreadyTrackedObject(tested_box):
     for tracker in trackers:
-        if sizeBetween(tracker.box, tested_box) < 100:
+        if sizeBetween(tracker.box, tested_box) < 50:
             #print(str(tested_box), str(tracker.box), str(sizeBetween(tracker.box, tested_box)), sep=" ")
             return True
-
     return False
 
 
@@ -267,18 +266,21 @@ stacked_counter = 0
 trackers = []
 numOfTrackedObjects = 0
 
-colorsNum = [(250, 250, 250), (0, 255, 0), (0, 0, 255), (10, 10, 10)]
-colors = ["White", "Red", "Green", "Black"]
+colorsNum = [(250, 250, 250), (10, 10, 10)]
+colors = ["White", "Black"]
 videos = ['rec_Trim.mp4']
 choice = 0
+frameNumber = 0
 cap = cv2.VideoCapture(videos[choice])
 
 object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=100, varThreshold=50)
 while True:
     ret, frame = cap.read()
     if not ret:
+        cap.release()
+        cv2.destroyAllWindows()
         break
-
+    frameNumber = frameNumber + 1
     roi, moveX, moveY = setRegionOfInterest(choice, frame)                  # set region of interest + remember move in X and Y
     mask = object_detector.apply(roi)                                       # apply object detector to ROI
     _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)              # treshold unwanted objects
@@ -294,7 +296,9 @@ while True:
     for tracker in trackers:
         tracker.update()
         tracker.draw()
-    cv2.imshow("roi", roi)
+    #cv2.imshow("roi", roi)
+    whiteMask = maskColor(frame, "White")
+    cv2.imshow("White mask", whiteMask)
     cv2.imshow("Frame", frame)
 
     destroyUnactiveTrackers()
@@ -304,3 +308,5 @@ while True:
         break
         cap.release()
         cv2.destroyAllWindows()
+
+print("Num of cars: " + str(numOfTrackedObjects))
