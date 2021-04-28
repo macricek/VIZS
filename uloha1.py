@@ -15,6 +15,7 @@ class carTracker():
     def __init__(self, id, inbox):
         self.number = id
         self.tracker = cv2.TrackerCSRT.create()
+        #self.tracker = cv2.TrackerKCF.create()
         self.tracker.init(frame, inbox)
         self.box = inbox
         self.info = (str(self.number), "Red")
@@ -62,17 +63,21 @@ class carTracker():
 
 def defineParams(hsvFrame, askedColor):
     # Set range for red color
-    red_lower = np.array([120, 60, 50], np.uint8)
-    red_upper = np.array([180, 255, 255], np.uint8)
-    # Set range for green color
-    green_lower = np.array([50, 60, 100], np.uint8)
-    green_upper = np.array([120, 255, 255], np.uint8)
-    # Set range for white color
-    sensitivity = 10
-    white_lower = np.array([0, 0, 255 - sensitivity])
-    white_upper = np.array([255, sensitivity, 255])
+    lower1Red = np.array([0, 70, 20])
+    upper1Red = np.array([20, 255, 255])
 
-    red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
+    lower2Red = np.array([160, 70, 20])
+    upper2Red = np.array([180, 255, 255])
+    # Set range for green color
+    green_lower = np.array([35, 40, 20], np.uint8)
+    green_upper = np.array([90, 255, 255], np.uint8)
+    # Set range for white color
+    white_lower = np.array([0, 0, 175])
+    white_upper = np.array([180, 100, 255])
+
+    red_mask_1 = cv2.inRange(hsvFrame, lower1Red, upper1Red)
+    red_mask_2 = cv2.inRange(hsvFrame, lower2Red, upper2Red)
+    red_mask = red_mask_1 + red_mask_2
     green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
     white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
 
@@ -94,9 +99,7 @@ def maskColor(inputFrame, askedColor):
     _, thresh = cv2.threshold(blur, 130, 255, cv2.THRESH_BINARY)
         # 1. convert from BGR to HSV
     hsvFrame = cv2.cvtColor(thresh, cv2.COLOR_BGR2HSV)
-    #cv2.imshow("hsv", hsvFrame)
     mask = defineParams(hsvFrame, askedColor)
-    mask = cv2.dilate(mask, kernal)
         # 3.
     res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=mask)
     return res
@@ -107,6 +110,7 @@ def findCenterOfBox(box):
     y = (box[1] + box[3]) / 2
     center = (x, y)
     return center
+
 
 def findColorPosInList(color):
     id = 0
@@ -139,7 +143,7 @@ def drawBoundingRect(img, box, textInfo, rect=True):
     if rect:
         cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=color)
     else:
-        cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=(0, 0, 255))
+        cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=(255, 0, 0))
 
 
 def setRegionOfInterest(choice, frame):
@@ -151,7 +155,6 @@ def setRegionOfInterest(choice, frame):
 
 
 def isThisColorRight(img, expectedArea):
-
     cannyy = cv2.Canny(img, 125, 175)
     dilated = cv2.dilate(cannyy, (7, 7), iterations=3)
     #cv2.imshow("D",dilated)
@@ -198,19 +201,28 @@ def findContours(img, original):
     for cnt in contours:
         # calc are and remove small elements
         area = cv2.contourArea(cnt)
-        if area > 200:
+        if area > 180:
             x, y, w, h = cv2.boundingRect(cnt)
             contour = (x, y, w, h)
             color = determineColorOfObject(original, contour, area)
-            if area > 2000:
+            if area > 1500:
                 type = "Big"
             else:
                 type = "Small"
             if color is None:
                 color = "Black"
-            contoursList.append(contour)
-            typesAndColors.append((type, color))
+            if isValidContour(contour, contoursList):
+                contoursList.append(contour)
+                typesAndColors.append((type, color))
     return contoursList, typesAndColors
+
+
+#find if current contour is not in list yet
+def isValidContour(contour, contoursList):
+    for contourFromList in contoursList:
+        if sizeBetween(contour, contourFromList) < 20:
+            return False
+    return True
 
 
 def alreadyTrackedObject(tested_box):
@@ -266,8 +278,8 @@ stacked_counter = 0
 trackers = []
 numOfTrackedObjects = 0
 
-colorsNum = [(250, 250, 250), (10, 10, 10)]
-colors = ["White", "Black"]
+colorsNum = [(250, 250, 250), (0,0,255), (0,255,0), (10, 10, 10)]
+colors = ["White", "Red", "Green", "Black"]
 videos = ['rec_Trim.mp4']
 choice = 0
 frameNumber = 0
@@ -296,9 +308,10 @@ while True:
     for tracker in trackers:
         tracker.update()
         tracker.draw()
-    #cv2.imshow("roi", roi)
-    whiteMask = maskColor(frame, "White")
-    cv2.imshow("White mask", whiteMask)
+
+    #cv2.imshow("roi", roi)                                                 #just for debug
+    #whiteMask = maskColor(frame, "White")
+    #cv2.imshow("White mask", whiteMask)
     cv2.imshow("Frame", frame)
 
     destroyUnactiveTrackers()

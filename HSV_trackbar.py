@@ -54,7 +54,7 @@ while True:
     # show thresholded image
     cv2.imshow('image', frame)
     frame = frame1
-    k = cv2.waitKey(10) & 0xFF # large wait time to remove freezing
+    k = cv2.waitKey(100) & 0xFF # large wait time to remove freezing
     if k == 113 or k == 27:
         break
         cv2.destroyAllWindows()
