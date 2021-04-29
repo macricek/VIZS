@@ -18,7 +18,7 @@ class carTracker():
         #self.tracker = cv2.TrackerKCF.create()
         self.tracker.init(frame, inbox)
         self.box = inbox
-        self.info = (str(self.number), "Red")
+        self.info = (str(self.number), "Blue")
         self.isAlive = True
 
     def update(self):
@@ -63,11 +63,11 @@ class carTracker():
 
 def defineParams(hsvFrame, askedColor):
     # Set range for red color
-    lower1Red = np.array([0, 70, 20])
-    upper1Red = np.array([20, 255, 255])
+    lower1Red = np.array([0, 70, 0])
+    upper1Red = np.array([30, 255, 255])
 
-    lower2Red = np.array([160, 70, 20])
-    upper2Red = np.array([180, 255, 255])
+    lower2Red = np.array([120, 0, 60])
+    upper2Red = np.array([160, 130, 150])
     # Set range for green color
     green_lower = np.array([35, 40, 20], np.uint8)
     green_upper = np.array([90, 255, 255], np.uint8)
@@ -94,22 +94,13 @@ def defineParams(hsvFrame, askedColor):
 
 
 def maskColor(inputFrame, askedColor):
-    kernal = np.ones((3, 3), "uint8")
     blur = cv2.GaussianBlur(inputFrame, (3, 3), 0)
     _, thresh = cv2.threshold(blur, 130, 255, cv2.THRESH_BINARY)
-        # 1. convert from BGR to HSV
     hsvFrame = cv2.cvtColor(thresh, cv2.COLOR_BGR2HSV)
     mask = defineParams(hsvFrame, askedColor)
-        # 3.
+
     res = cv2.bitwise_and(hsvFrame, hsvFrame, mask=mask)
     return res
-
-
-def findCenterOfBox(box):
-    x = (box[0] + box[2]) / 2
-    y = (box[1] + box[3]) / 2
-    center = (x, y)
-    return center
 
 
 def findColorPosInList(color):
@@ -120,7 +111,8 @@ def findColorPosInList(color):
         id = id + 1
     return None
 
-
+## draw bounding rect around contour (car)
+## if it's called from tracker, just write number of car
 def drawBoundingRect(img, box, textInfo, rect=True):
     # parse box
     x = box[0] + moveX
@@ -145,29 +137,15 @@ def drawBoundingRect(img, box, textInfo, rect=True):
     else:
         cv2.putText(img, text, (round(x + w / 4), y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color=(255, 0, 0))
 
-
-def setRegionOfInterest(choice, frame):
-    if choice == 0:
-        moveY = 230
-        moveX = 650
-        roi = frame[moveY:moveY+120, moveX:moveX+150]
+## set where do we want to detect cars and possibly start tracking them
+def setRegionOfInterest(frame):
+    moveY = 230
+    moveX = 650
+    roi = frame[moveY:moveY+120, moveX:moveX+150]
     return roi, moveX, moveY
 
-
-def isThisColorRight(img, expectedArea):
-    cannyy = cv2.Canny(img, 125, 175)
-    dilated = cv2.dilate(cannyy, (7, 7), iterations=3)
-    #cv2.imshow("D",dilated)
-    #cv2.waitKey(10000)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > expectedArea/2:
-            return True
-   # key = cv2.waitKey(2000)
-    return False
-
-
+## find a color of current object passed -> from predefined colors (white, green, red)
+## if it isn't any of them, return None as OTHER color
 def determineColorOfObject(img, roi, area):
     trashHold = 10
 
@@ -190,7 +168,21 @@ def determineColorOfObject(img, roi, area):
             return currentColor
     return None
 
+## determine if object could be detected after mask aplication
+def isThisColorRight(maskedImg, expectedArea):
+    cannyy = cv2.Canny(maskedImg, 125, 175)
+    dilated = cv2.dilate(cannyy, (7, 7), iterations=3)
+    #cv2.imshow("D",dilated)
+    #cv2.waitKey(10000)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area > expectedArea/2:
+            return True
+    return False
 
+## find contours in img (original frame with applied background substractor)
+## return valid contours with information about them: size of object (car), color
 def findContours(img, original):
     # define 2 lists
     contoursList = []
@@ -205,7 +197,7 @@ def findContours(img, original):
             x, y, w, h = cv2.boundingRect(cnt)
             contour = (x, y, w, h)
             color = determineColorOfObject(original, contour, area)
-            if area > 1500:
+            if area > 1000:
                 type = "Big"
             else:
                 type = "Small"
@@ -224,15 +216,15 @@ def isValidContour(contour, contoursList):
             return False
     return True
 
-
+#make sure we won't track already tracked object
+#function return true if current found object is already in list of tracked objects, else will return false
 def alreadyTrackedObject(tested_box):
     for tracker in trackers:
-        if sizeBetween(tracker.box, tested_box) < 50:
-            #print(str(tested_box), str(tracker.box), str(sizeBetween(tracker.box, tested_box)), sep=" ")
+        if sizeBetween(tracker.box, tested_box) < 30:
             return True
     return False
 
-
+## range between two boxes -> used to determine if this box is already shown/tracked
 def sizeBetween(box1, box2):
     centerBox1 = findCenterOfBox(box1)
     centerBox2 = findCenterOfBox(box2)
@@ -241,6 +233,15 @@ def sizeBetween(box1, box2):
     return sqrt(pow(xdif, 2) + pow(ydif, 2))
 
 
+## find middle of box, used to range measurements
+def findCenterOfBox(box):
+    x = (box[0] + box[2]) / 2
+    y = (box[1] + box[3]) / 2
+    center = (x, y)
+    return center
+
+
+## init new tracker from passed contour and info about contour
 def initTracker(box, info):
     global numOfTrackedObjects
     colorName = info[1]
@@ -253,14 +254,14 @@ def initTracker(box, info):
         trackers.append(tracker)
         print("Tracker initiated ", str(numOfTrackedObjects))
 
-
+## destroy trackers that are tracking non - existing objects (gone out of camera)
 def destroyUnactiveTrackers():
     global trackers
     idx = findUnactiveTrackers()
     for i in range(len(idx)):
         trackers.remove(trackers[idx[i]])
 
-
+## find these unactive objects and return their position in list
 def findUnactiveTrackers():
     idx = []
     for j in range(len(trackers)):
@@ -272,46 +273,48 @@ def findUnactiveTrackers():
     return idx
 
 
-### START OF CODE
-box_history = (0, 0, 0, 0)
-stacked_counter = 0
-trackers = []
-numOfTrackedObjects = 0
+### START OF MAIN CODE
 
-colorsNum = [(250, 250, 250), (0,0,255), (0,255,0), (10, 10, 10)]
-colors = ["White", "Red", "Green", "Black"]
-videos = ['rec_Trim.mp4']
-choice = 0
-frameNumber = 0
-cap = cv2.VideoCapture(videos[choice])
+trackers = []               # global list of all trackers in frame
+numOfTrackedObjects = 0     # number of tracked objects since start of program
 
-object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=100, varThreshold=50)
+colorsNum = [(250, 250, 250), (0,0,255), (0,255,0), (10, 10, 10)]   # BGR mode colors
+colors = ["White", "Red", "Green", "Black"]                         # colors in strings -> for correct color it need to be in sync with BGR of colors
+videos = ['rec_Trim.mp4', 'rec_Trim2.mp4']                          # name of videos (could be used with more)
+choice = 0                                                          # choice of video
+
+cap = cv2.VideoCapture(videos[choice])                              # start capture of video
+
+# define background substractor
+object_detector = cv2.createBackgroundSubtractorMOG2(detectShadows=False, history=100, varThreshold=60)
+
 while True:
     ret, frame = cap.read()
     if not ret:
         cap.release()
         cv2.destroyAllWindows()
         break
-    frameNumber = frameNumber + 1
-    roi, moveX, moveY = setRegionOfInterest(choice, frame)                  # set region of interest + remember move in X and Y
+
+    roi, moveX, moveY = setRegionOfInterest(frame)                          # set region of interest + remember move in X and Y
     mask = object_detector.apply(roi)                                       # apply object detector to ROI
     _, mask = cv2.threshold(mask, 120, 255, cv2.THRESH_BINARY)              # treshold unwanted objects
     contours, contourInfo = findContours(mask, roi)                         # find contours in ROI
 
     if len(contours) != len(contourInfo):
         print("Not good")
+        break
 
     for i in range(0, len(contours)):
         drawBoundingRect(frame, contours[i], contourInfo[i])                # bound found moving objects
         initTracker(contours[i], contourInfo[i])                            # try to find right object to track
 
     for tracker in trackers:
-        tracker.update()
-        tracker.draw()
+        tracker.update()                                                    # update trackers positions
+        tracker.draw()                                                      # draw numbers of cars
 
     #cv2.imshow("roi", roi)                                                 #just for debug
-    #whiteMask = maskColor(frame, "White")
-    #cv2.imshow("White mask", whiteMask)
+    #maskedFramik = maskColor(frame, "Red")
+    #cv2.imshow("masked frame", maskedFramik)
     cv2.imshow("Frame", frame)
 
     destroyUnactiveTrackers()
